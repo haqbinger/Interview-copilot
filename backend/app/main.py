@@ -67,7 +67,10 @@ def _build_provider(config: Settings) -> FallbackProvider:
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://interview-copilot-49i7.onrender.com",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
