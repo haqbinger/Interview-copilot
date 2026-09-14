@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+httpx
+anthropic
+google-genai
+groq
+pydantic-settings
+python-dotenv
+groq
