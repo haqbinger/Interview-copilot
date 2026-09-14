@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, settings
 from app.ingestion.briefing_generator import generate_briefing
@@ -64,6 +65,12 @@ def _build_provider(config: Settings) -> FallbackProvider:
 
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 router = APIRouter()
 provider = _build_provider(settings)
 

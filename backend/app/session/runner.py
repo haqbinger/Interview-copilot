@@ -96,19 +96,21 @@ def submit_answer(session_id: str, answer: str, provider) -> SessionResponse:
         report=result["report"],
     )
 
+    latest_evaluation = result["evaluations"][-1] if result["evaluations"] else None
+
     if result["state"] == SessionState.COMPLETE.value:
         return SessionResponse(
             session_id=session_id,
             state=SessionState(result["state"]),
             message="Interview complete. Final report ready.",
-            data={"report": result["report"]},
+            data={"report": result["report"], "evaluation": latest_evaluation},
         )
 
     return SessionResponse(
         session_id=session_id,
         state=SessionState(result["state"]),
         message="Next question ready.",
-        data={"question": result["current_question"]},
+        data={"question": result["current_question"], "evaluation": latest_evaluation},
     )
 
 
