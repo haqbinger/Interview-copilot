@@ -55,7 +55,11 @@ def evaluate_answer(submission: AnswerSubmission, provider) -> EvaluateAnswerRes
 
     try:
         data = json.loads(response_text)
-        evaluation = AnswerEvaluation(question_id=submission.question_id, **data)
+        evaluation = AnswerEvaluation(
+            question_id=submission.question_id,
+            category=submission.category,
+            **data,
+        )
     except (json.JSONDecodeError, TypeError) as exc:
         raise ValueError(f"Failed to parse answer evaluation response as JSON: {exc}") from exc
 

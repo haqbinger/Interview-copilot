@@ -8,14 +8,17 @@ from app.ingestion.github_client import GitHubClient, GitHubClientError
 from app.ingestion.repo_parser import parse_repo
 from app.interview.answer_evaluator import evaluate_answer
 from app.interview.question_generator import generate_questions
+from app.interview.report_generator import generate_report
 from app.llm.provider import ClaudeProvider, FallbackProvider, GeminiProvider, GroqProvider
 from app.models.schemas import (
     AnswerSubmission,
     EvaluateAnswerResponse,
     GenerateQuestionsRequest,
     GenerateQuestionsResponse,
+    GenerateReportRequest,
     IngestRequest,
     IngestResponse,
+    InterviewReport,
 )
 
 logger = logging.getLogger(__name__)
@@ -107,6 +110,14 @@ def questions(request: GenerateQuestionsRequest) -> GenerateQuestionsResponse:
 def evaluate(submission: AnswerSubmission) -> EvaluateAnswerResponse:
     try:
         return evaluate_answer(submission, provider)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/api/v1/report", response_model=InterviewReport)
+def report(request: GenerateReportRequest) -> InterviewReport:
+    try:
+        return generate_report(request, provider)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

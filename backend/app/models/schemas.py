@@ -71,10 +71,12 @@ class AnswerSubmission(BaseModel):
     question_text: str
     candidate_answer: str
     repo_summary: RepoSummary
+    category: str
 
 
 class AnswerEvaluation(BaseModel):
     question_id: str
+    category: str
     score: int = Field(ge=1, le=5)
     verdict: str
     correct_concepts: list[str]
@@ -86,3 +88,31 @@ class AnswerEvaluation(BaseModel):
 class EvaluateAnswerResponse(BaseModel):
     evaluation: AnswerEvaluation
     difficulty_adjustment: int
+
+
+class CategoryScore(BaseModel):
+    category: str
+    score: float
+    max_score: float
+
+
+class InterviewReport(BaseModel):
+    session_id: str
+    overall_score: float
+    category_scores: list[CategoryScore]
+    strong_areas: list[str]
+    weak_areas: list[str]
+    misconceptions: list[str]
+    revision_plan: list[str]
+    follow_up_questions: list[str]
+    mode: InterviewMode
+    total_questions: int
+    answered_questions: int
+
+
+class GenerateReportRequest(BaseModel):
+    session_id: str
+    mode: InterviewMode
+    repo_summary: RepoSummary
+    briefing: BriefingResult
+    evaluations: list[AnswerEvaluation]
