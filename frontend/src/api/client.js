@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const client = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '',
+  baseURL: import.meta.env.VITE_API_URL || 'https://interview-copilot-backend-gopz.onrender.com',
 })
 
 export async function startSession(githubUrl, mode) {
