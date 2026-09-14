@@ -116,3 +116,18 @@ class GenerateReportRequest(BaseModel):
     repo_summary: RepoSummary
     briefing: BriefingResult
     evaluations: list[AnswerEvaluation]
+
+
+class StressFollowUpRequest(BaseModel):
+    session_id: str
+    question_text: str
+    candidate_answer: str
+    evaluation: AnswerEvaluation
+    repo_summary: RepoSummary
+    exchange_number: int
+
+
+class StressFollowUpResponse(BaseModel):
+    follow_up: str
+    challenge_type: str
+    pressure_level: int = Field(ge=1, le=5)

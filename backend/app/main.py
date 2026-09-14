@@ -9,6 +9,7 @@ from app.ingestion.repo_parser import parse_repo
 from app.interview.answer_evaluator import evaluate_answer
 from app.interview.question_generator import generate_questions
 from app.interview.report_generator import generate_report
+from app.interview.stress_interviewer import generate_stress_followup
 from app.llm.provider import ClaudeProvider, FallbackProvider, GeminiProvider, GroqProvider
 from app.models.schemas import (
     AnswerSubmission,
@@ -19,6 +20,8 @@ from app.models.schemas import (
     IngestRequest,
     IngestResponse,
     InterviewReport,
+    StressFollowUpRequest,
+    StressFollowUpResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -118,6 +121,14 @@ def evaluate(submission: AnswerSubmission) -> EvaluateAnswerResponse:
 def report(request: GenerateReportRequest) -> InterviewReport:
     try:
         return generate_report(request, provider)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/api/v1/stress/followup", response_model=StressFollowUpResponse)
+def stress_followup(request: StressFollowUpRequest) -> StressFollowUpResponse:
+    try:
+        return generate_stress_followup(request, provider)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
