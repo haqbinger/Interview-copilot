@@ -34,6 +34,12 @@ function App() {
     setError(null)
     try {
       const response = await startSession(githubUrl, mode)
+      console.log(response.data)
+      if (!response.data || !response.data.briefing) {
+        console.error('Unexpected startSession response shape:', response)
+        setError('Something went wrong analysing this repo. Please try again.')
+        return
+      }
       setState((prev) => ({
         ...prev,
         sessionId: response.session_id,
@@ -57,6 +63,12 @@ function App() {
     setError(null)
     try {
       const response = await submitExplanation(state.sessionId, explanation)
+      console.log(response.data)
+      if (!response.data || !response.data.question) {
+        console.error('Unexpected submitExplanation response shape:', response)
+        setError('Something went wrong generating your first question. Please try again.')
+        return
+      }
       const status = await getStatus(state.sessionId)
       setState((prev) => ({
         ...prev,
@@ -75,6 +87,12 @@ function App() {
   async function handleSubmitAnswer(answer) {
     setError(null)
     const response = await submitAnswer(state.sessionId, answer)
+    console.log(response.data)
+    if (!response.data || (!response.data.question && !response.data.report)) {
+      console.error('Unexpected submitAnswer response shape:', response)
+      setError('Something went wrong evaluating your answer. Please try again.')
+      return response
+    }
     setState((prev) => ({
       ...prev,
       evaluations: [...prev.evaluations, response.data.evaluation],
