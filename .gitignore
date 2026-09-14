@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Env & secrets
+.env
+*.env.local
+
+# Claude Code
+CLAUDE.md
+
+# Milestone docs & ADRs (internal dev artifacts)
+docs/
+adr/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# MLflow
+mlruns/
+mlflow.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Test & coverage
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Node (for when frontend gets added in later milestones)
+node_modules/
+.next/
+dist/
+build/
