@@ -6,8 +6,14 @@ from app.config import Settings, settings
 from app.ingestion.briefing_generator import generate_briefing
 from app.ingestion.github_client import GitHubClient, GitHubClientError
 from app.ingestion.repo_parser import parse_repo
+from app.interview.question_generator import generate_questions
 from app.llm.provider import ClaudeProvider, FallbackProvider, GeminiProvider, GroqProvider
-from app.models.schemas import IngestRequest, IngestResponse
+from app.models.schemas import (
+    GenerateQuestionsRequest,
+    GenerateQuestionsResponse,
+    IngestRequest,
+    IngestResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +90,14 @@ def ingest(request: IngestRequest) -> IngestResponse:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return IngestResponse(repo_summary=repo_summary, briefing=briefing)
+
+
+@router.post("/api/v1/questions", response_model=GenerateQuestionsResponse)
+def questions(request: GenerateQuestionsRequest) -> GenerateQuestionsResponse:
+    try:
+        return generate_questions(request, provider)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 app.include_router(router)

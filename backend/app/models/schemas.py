@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from enum import Enum
+
+from pydantic import BaseModel, Field
 
 
 class RepoFile(BaseModel):
@@ -28,3 +30,36 @@ class IngestRequest(BaseModel):
 class IngestResponse(BaseModel):
     repo_summary: RepoSummary
     briefing: BriefingResult
+
+
+class InterviewMode(str, Enum):
+    BEGINNER = "BEGINNER"
+    TECHNICAL = "TECHNICAL"
+    DEEP_DIVE = "DEEP_DIVE"
+    STRESS = "STRESS"
+
+
+class Question(BaseModel):
+    id: str
+    text: str
+    category: str
+    difficulty: int = Field(ge=1, le=5)
+    follow_up_hint: str
+
+
+class QuestionSet(BaseModel):
+    mode: InterviewMode
+    questions: list[Question]
+    session_id: str
+
+
+class GenerateQuestionsRequest(BaseModel):
+    repo_summary: RepoSummary
+    briefing: BriefingResult
+    candidate_explanation: str
+    mode: InterviewMode = InterviewMode.TECHNICAL
+
+
+class GenerateQuestionsResponse(BaseModel):
+    question_set: QuestionSet
+    explanation_gaps: list[str]
