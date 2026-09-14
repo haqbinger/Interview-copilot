@@ -131,3 +131,36 @@ class StressFollowUpResponse(BaseModel):
     follow_up: str
     challenge_type: str
     pressure_level: int = Field(ge=1, le=5)
+
+
+class SessionState(str, Enum):
+    INGESTING = "INGESTING"
+    EXPLAINING = "EXPLAINING"
+    INTERVIEWING = "INTERVIEWING"
+    EVALUATING = "EVALUATING"
+    REPORTING = "REPORTING"
+    COMPLETE = "COMPLETE"
+
+
+class SessionCreateRequest(BaseModel):
+    github_url: str
+    mode: InterviewMode
+
+
+class SessionStatusResponse(BaseModel):
+    session_id: str
+    state: SessionState
+    current_question_index: int
+    total_questions: int
+
+
+class AnswerRequest(BaseModel):
+    session_id: str
+    answer: str
+
+
+class SessionResponse(BaseModel):
+    session_id: str
+    state: SessionState
+    message: str
+    data: dict

@@ -6,6 +6,9 @@ from app.models.schemas import BriefingResult, RepoSummary
 
 logger = logging.getLogger(__name__)
 
+MAX_CHARS = 12000
+TRUNCATION_SUFFIX = "...[truncated for context limit]"
+
 SYSTEM_PROMPT = """You are an assistant preparing an interviewer to discuss a candidate's GitHub project.
 
 You will be given the repo's README, file tree, and selected file contents. Analyze the repo and \
@@ -24,6 +27,9 @@ and (5) what they would do differently or improve with more time.
 
 def generate_briefing(repo_summary: RepoSummary, provider: ClaudeProvider) -> BriefingResult:
     user_message = _build_user_message(repo_summary)
+    if len(user_message) > MAX_CHARS:
+        user_message = user_message[:MAX_CHARS] + TRUNCATION_SUFFIX
+
     response_text = provider.complete(
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_message}],

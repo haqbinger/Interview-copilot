@@ -4,6 +4,8 @@ httpx
 anthropic
 google-genai
 groq
+langgraph
+langchain-core
 pydantic-settings
 python-dotenv
 groq
