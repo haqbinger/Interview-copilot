@@ -63,3 +63,26 @@ class GenerateQuestionsRequest(BaseModel):
 class GenerateQuestionsResponse(BaseModel):
     question_set: QuestionSet
     explanation_gaps: list[str]
+
+
+class AnswerSubmission(BaseModel):
+    session_id: str
+    question_id: str
+    question_text: str
+    candidate_answer: str
+    repo_summary: RepoSummary
+
+
+class AnswerEvaluation(BaseModel):
+    question_id: str
+    score: int = Field(ge=1, le=5)
+    verdict: str
+    correct_concepts: list[str]
+    missing_concepts: list[str]
+    misconceptions: list[str]
+    follow_up: str
+
+
+class EvaluateAnswerResponse(BaseModel):
+    evaluation: AnswerEvaluation
+    difficulty_adjustment: int

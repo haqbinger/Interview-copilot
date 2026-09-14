@@ -6,9 +6,12 @@ from app.config import Settings, settings
 from app.ingestion.briefing_generator import generate_briefing
 from app.ingestion.github_client import GitHubClient, GitHubClientError
 from app.ingestion.repo_parser import parse_repo
+from app.interview.answer_evaluator import evaluate_answer
 from app.interview.question_generator import generate_questions
 from app.llm.provider import ClaudeProvider, FallbackProvider, GeminiProvider, GroqProvider
 from app.models.schemas import (
+    AnswerSubmission,
+    EvaluateAnswerResponse,
     GenerateQuestionsRequest,
     GenerateQuestionsResponse,
     IngestRequest,
@@ -96,6 +99,14 @@ def ingest(request: IngestRequest) -> IngestResponse:
 def questions(request: GenerateQuestionsRequest) -> GenerateQuestionsResponse:
     try:
         return generate_questions(request, provider)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/api/v1/evaluate", response_model=EvaluateAnswerResponse)
+def evaluate(submission: AnswerSubmission) -> EvaluateAnswerResponse:
+    try:
+        return evaluate_answer(submission, provider)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
