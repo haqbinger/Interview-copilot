@@ -29,11 +29,11 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  async function handleStartSession(githubUrl, mode) {
+  async function handleStartSession(githubUrl, mode, apiKeys) {
     setLoading(true)
     setError(null)
     try {
-      const response = await startSession(githubUrl, mode)
+      const response = await startSession(githubUrl, mode, apiKeys)
       console.log(response.data)
       if (!response.data || !response.data.briefing) {
         console.error('Unexpected startSession response shape:', response)

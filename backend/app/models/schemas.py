@@ -74,6 +74,12 @@ class AnswerSubmission(BaseModel):
     category: str
 
 
+class RAGMetrics(BaseModel):
+    retrieval_precision: float
+    answer_faithfulness: float
+    chunks_retrieved: int
+
+
 class AnswerEvaluation(BaseModel):
     question_id: str
     category: str
@@ -83,6 +89,7 @@ class AnswerEvaluation(BaseModel):
     missing_concepts: list[str]
     misconceptions: list[str]
     follow_up: str
+    rag_metrics: RAGMetrics | None = None
 
 
 class EvaluateAnswerResponse(BaseModel):
@@ -145,6 +152,15 @@ class SessionState(str, Enum):
 class SessionCreateRequest(BaseModel):
     github_url: str
     mode: InterviewMode
+    api_keys: list[dict] | None = None
+    groq_api_key: str | None = None
+    gemini_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    openai_api_key: str | None = None
+    deepseek_api_key: str | None = None
+    openrouter_api_key: str | None = None
+    mistral_api_key: str | None = None
+    preferred_provider: str | None = None
 
 
 class SessionStatusResponse(BaseModel):
@@ -164,3 +180,6 @@ class SessionResponse(BaseModel):
     state: SessionState
     message: str
     data: dict
+    latency_ms: float | None = None
+    input_tokens: int | None = None
+    estimated_cost_usd: float | None = None

@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import TypedDict
 
 from langgraph.checkpoint.memory import MemorySaver
@@ -19,9 +20,25 @@ from app.models.schemas import (
     RepoSummary,
     SessionState,
 )
+from app.rag.embedder import RepoEmbedder
 from app.session.provider_registry import get as get_provider
 
+RAG_QUESTION_GEN_K = 10
+RAG_EVALUATION_K = 5
+
 logger = logging.getLogger(__name__)
+
+RETRYABLE_MARKERS = ("429", "RESOURCE_EXHAUSTED", "quota")
+
+
+def _call_with_retry(func, *args):
+    try:
+        return func(*args)
+    except Exception as exc:
+        if any(marker in str(exc) for marker in RETRYABLE_MARKERS):
+            time.sleep(60)
+            return func(*args)
+        raise
 
 
 class InterviewState(TypedDict):
@@ -38,16 +55,22 @@ class InterviewState(TypedDict):
     evaluations: list[dict]
     report: dict | None
     current_input: str | None
+    rag_enabled: bool
 
 
 def ingest_node(state: InterviewState) -> dict:
     provider = get_provider(state["session_id"])
     repo_summary = fetch_repo_summary(state["github_url"])
-    briefing = generate_briefing(repo_summary, provider)
+    briefing = _call_with_retry(generate_briefing, repo_summary, provider)
+
+    file_contents = {f.path: f.content for f in repo_summary.file_tree if f.content is not None}
+    RepoEmbedder().build_index(state["session_id"], file_contents)
+
     return {
         "repo_summary": repo_summary.model_dump(mode="json"),
         "briefing": briefing.model_dump(mode="json"),
         "state": SessionState.EXPLAINING.value,
+        "rag_enabled": True,
     }
 
 
@@ -61,7 +84,10 @@ def explain_node(state: InterviewState) -> dict:
         candidate_explanation=candidate_explanation,
         mode=InterviewMode(state["mode"]),
     )
-    response = generate_questions(request, provider)
+    repo_context_chunks = RepoEmbedder().retrieve(
+        state["session_id"], candidate_explanation, k=RAG_QUESTION_GEN_K
+    )
+    response = _call_with_retry(generate_questions, request, provider, repo_context_chunks)
 
     return {
         "candidate_explanation": candidate_explanation,
@@ -95,7 +121,10 @@ def evaluate_node(state: InterviewState) -> dict:
         repo_summary=RepoSummary(**state["repo_summary"]),
         category=current_question.category,
     )
-    result = evaluate_answer(submission, provider)
+    repo_context_chunks = RepoEmbedder().retrieve(
+        state["session_id"], current_question.text, k=RAG_EVALUATION_K
+    )
+    result = _call_with_retry(evaluate_answer, submission, provider, repo_context_chunks)
 
     evaluations = state["evaluations"] + [result.evaluation.model_dump(mode="json")]
     next_index = state["current_question_index"] + 1
@@ -122,7 +151,8 @@ def report_node(state: InterviewState) -> dict:
         briefing=BriefingResult(**state["briefing"]),
         evaluations=state["evaluations"],
     )
-    report = generate_report(request, provider)
+    report = _call_with_retry(generate_report, request, provider)
+    RepoEmbedder().delete_index(state["session_id"])
 
     return {"report": report.model_dump(mode="json"), "state": SessionState.COMPLETE.value}
 

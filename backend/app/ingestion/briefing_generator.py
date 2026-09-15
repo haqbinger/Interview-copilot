@@ -1,6 +1,6 @@
-import json
 import logging
 
+from app.guardrails.output_validator import validate_llm_json
 from app.llm.provider import ClaudeProvider
 from app.models.schemas import BriefingResult, RepoSummary
 
@@ -35,10 +35,10 @@ def generate_briefing(repo_summary: RepoSummary, provider: ClaudeProvider) -> Br
         messages=[{"role": "user", "content": user_message}],
     )
 
+    data = validate_llm_json(response_text, ["tech_stack", "key_data_flows", "opening_prompt"])
     try:
-        data = json.loads(response_text)
         return BriefingResult(**data)
-    except (json.JSONDecodeError, TypeError) as exc:
+    except TypeError as exc:
         raise ValueError(f"Failed to parse briefing response as JSON: {exc}") from exc
 
 

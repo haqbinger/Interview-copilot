@@ -1,7 +1,7 @@
-import json
 import logging
 import uuid
 
+from app.guardrails.output_validator import validate_llm_json
 from app.models.schemas import (
     GenerateQuestionsRequest,
     GenerateQuestionsResponse,
@@ -46,7 +46,7 @@ Repo tech stack:
 
 Repo key data flows:
 {key_data_flows}
-
+{code_context_section}
 The candidate was asked to explain their project in their own words. Here is what they said, verbatim:
 \"\"\"
 {candidate_explanation}
@@ -75,11 +75,26 @@ Respond with ONLY a JSON object (no markdown fences, no commentary) with exactly
 """
 
 
-def generate_questions(request: GenerateQuestionsRequest, provider) -> GenerateQuestionsResponse:
+def generate_questions(
+    request: GenerateQuestionsRequest,
+    provider,
+    repo_context_chunks: list[str] | None = None,
+) -> GenerateQuestionsResponse:
     mode_config = MODE_CONFIG[request.mode]
+
+    code_context_section = ""
+    if repo_context_chunks:
+        joined_chunks = "\n---\n".join(repo_context_chunks[:2])[:800]
+        code_context_section = (
+            "\nRelevant code context (retrieved from the repo via semantic search):\n"
+            + joined_chunks
+            + "\n"
+        )
+
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         tech_stack=", ".join(request.briefing.tech_stack),
         key_data_flows="\n".join(f"- {flow}" for flow in request.briefing.key_data_flows),
+        code_context_section=code_context_section,
         candidate_explanation=request.candidate_explanation,
         count=mode_config["count"],
         difficulty_range=mode_config["difficulty_range"],
@@ -92,8 +107,8 @@ def generate_questions(request: GenerateQuestionsRequest, provider) -> GenerateQ
         messages=[{"role": "user", "content": "Generate the interview questions now."}],
     )
 
+    data = validate_llm_json(response_text, ["questions", "explanation_gaps"])
     try:
-        data = json.loads(response_text)
         question_set = QuestionSet(
             mode=request.mode,
             questions=data["questions"],
@@ -103,5 +118,5 @@ def generate_questions(request: GenerateQuestionsRequest, provider) -> GenerateQ
             question_set=question_set,
             explanation_gaps=data["explanation_gaps"],
         )
-    except (json.JSONDecodeError, TypeError, KeyError) as exc:
+    except TypeError as exc:
         raise ValueError(f"Failed to parse question generation response as JSON: {exc}") from exc

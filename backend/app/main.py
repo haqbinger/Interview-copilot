@@ -1,9 +1,13 @@
 import logging
 
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from app.config import Settings, settings
+from app.guardrails.input_validator import validate_answer, validate_api_key, validate_github_url
 from app.ingestion.briefing_generator import generate_briefing
 from app.ingestion.github_client import GitHubClientError
 from app.ingestion.ingest_service import fetch_repo_summary
@@ -11,7 +15,16 @@ from app.interview.answer_evaluator import evaluate_answer
 from app.interview.question_generator import generate_questions
 from app.interview.report_generator import generate_report
 from app.interview.stress_interviewer import generate_stress_followup
-from app.llm.provider import ClaudeProvider, FallbackProvider, GeminiProvider, GroqProvider
+from app.llm.provider import (
+    ClaudeProvider,
+    DeepSeekProvider,
+    FallbackProvider,
+    GeminiProvider,
+    GroqProvider,
+    MistralProvider,
+    OpenAIProvider,
+    OpenRouterProvider,
+)
 from app.models.schemas import (
     AnswerRequest,
     AnswerSubmission,
@@ -43,11 +56,19 @@ PROVIDER_CLASSES = {
     "groq": GroqProvider,
     "gemini": GeminiProvider,
     "claude": ClaudeProvider,
+    "openai": OpenAIProvider,
+    "deepseek": DeepSeekProvider,
+    "openrouter": OpenRouterProvider,
+    "mistral": MistralProvider,
 }
 PROVIDER_KEYS = {
     "groq": "GROQ_API_KEY",
     "gemini": "GEMINI_API_KEY",
     "claude": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "mistral": "MISTRAL_API_KEY",
 }
 
 
@@ -77,6 +98,10 @@ app.add_middleware(
 router = APIRouter()
 provider = _build_provider(settings)
 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 @router.get("/health")
 def health() -> dict[str, str]:
@@ -84,9 +109,10 @@ def health() -> dict[str, str]:
 
 
 @router.post("/api/v1/ingest", response_model=IngestResponse)
-def ingest(request: IngestRequest) -> IngestResponse:
+@limiter.limit("5/minute")
+def ingest(request: Request, payload: IngestRequest) -> IngestResponse:
     try:
-        repo_summary = fetch_repo_summary(request.github_url)
+        repo_summary = fetch_repo_summary(payload.github_url)
     except GitHubClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -99,15 +125,17 @@ def ingest(request: IngestRequest) -> IngestResponse:
 
 
 @router.post("/api/v1/questions", response_model=GenerateQuestionsResponse)
-def questions(request: GenerateQuestionsRequest) -> GenerateQuestionsResponse:
+@limiter.limit("10/minute")
+def questions(request: Request, payload: GenerateQuestionsRequest) -> GenerateQuestionsResponse:
     try:
-        return generate_questions(request, provider)
+        return generate_questions(payload, provider)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/api/v1/evaluate", response_model=EvaluateAnswerResponse)
-def evaluate(submission: AnswerSubmission) -> EvaluateAnswerResponse:
+@limiter.limit("20/minute")
+def evaluate(request: Request, submission: AnswerSubmission) -> EvaluateAnswerResponse:
     try:
         return evaluate_answer(submission, provider)
     except ValueError as exc:
@@ -115,53 +143,112 @@ def evaluate(submission: AnswerSubmission) -> EvaluateAnswerResponse:
 
 
 @router.post("/api/v1/report", response_model=InterviewReport)
-def report(request: GenerateReportRequest) -> InterviewReport:
+@limiter.limit("10/minute")
+def report(request: Request, payload: GenerateReportRequest) -> InterviewReport:
     try:
-        return generate_report(request, provider)
+        return generate_report(payload, provider)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/api/v1/stress/followup", response_model=StressFollowUpResponse)
-def stress_followup(request: StressFollowUpRequest) -> StressFollowUpResponse:
+@limiter.limit("20/minute")
+def stress_followup(request: Request, payload: StressFollowUpRequest) -> StressFollowUpResponse:
     try:
-        return generate_stress_followup(request, provider)
+        return generate_stress_followup(payload, provider)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/api/v1/session/start", response_model=SessionResponse)
-def session_start(request: SessionCreateRequest) -> SessionResponse:
-    session_id = store.create(request.mode)
+@limiter.limit("5/minute")
+def session_start(request: Request, payload: SessionCreateRequest) -> SessionResponse:
     try:
-        return start_session(session_id, request.github_url, request.mode, provider)
+        validate_github_url(payload.github_url)
+        if payload.api_keys:
+            for entry in payload.api_keys:
+                provider_name, key = entry.get("provider"), entry.get("key")
+                if provider_name and key:
+                    validate_api_key(provider_name, key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    session_id = store.create(payload.mode)
+    try:
+        response = start_session(
+            session_id,
+            payload.github_url,
+            payload.mode,
+            provider,
+            api_keys=payload.api_keys,
+            groq_api_key=payload.groq_api_key,
+            gemini_api_key=payload.gemini_api_key,
+            anthropic_api_key=payload.anthropic_api_key,
+            openai_api_key=payload.openai_api_key,
+            deepseek_api_key=payload.deepseek_api_key,
+            openrouter_api_key=payload.openrouter_api_key,
+            mistral_api_key=payload.mistral_api_key,
+            preferred_provider=payload.preferred_provider,
+        )
     except (GitHubClientError, ValueError) as exc:
         store.delete(session_id)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    logger.info(
+        f"[session_start] provider={response.data.get('provider')} "
+        f"latency={response.latency_ms or 0:.0f}ms tokens={response.input_tokens} "
+        f"cost=${response.estimated_cost_usd or 0:.6f} session={session_id}"
+    )
+    return response
+
 
 @router.post("/api/v1/session/{session_id}/explain", response_model=SessionResponse)
-def session_explain(session_id: str, request: AnswerRequest) -> SessionResponse:
+@limiter.limit("10/minute")
+def session_explain(request: Request, session_id: str, payload: AnswerRequest) -> SessionResponse:
     if store.get(session_id) is None:
         raise HTTPException(status_code=404, detail="Session not found")
     try:
-        return submit_explanation(session_id, request.answer, provider)
+        answer = validate_answer(payload.answer)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        response = submit_explanation(session_id, answer, provider)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    logger.info(
+        f"[session_explain] provider={response.data.get('provider')} "
+        f"latency={response.latency_ms or 0:.0f}ms tokens={response.input_tokens} "
+        f"cost=${response.estimated_cost_usd or 0:.6f} session={session_id}"
+    )
+    return response
 
 
 @router.post("/api/v1/session/{session_id}/answer", response_model=SessionResponse)
-def session_answer(session_id: str, request: AnswerRequest) -> SessionResponse:
+@limiter.limit("20/minute")
+def session_answer(request: Request, session_id: str, payload: AnswerRequest) -> SessionResponse:
     if store.get(session_id) is None:
         raise HTTPException(status_code=404, detail="Session not found")
     try:
-        return submit_answer(session_id, request.answer, provider)
+        answer = validate_answer(payload.answer)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        response = submit_answer(session_id, answer, provider)
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    logger.info(
+        f"[session_answer] provider={response.data.get('provider')} "
+        f"latency={response.latency_ms or 0:.0f}ms tokens={response.input_tokens} "
+        f"cost=${response.estimated_cost_usd or 0:.6f} session={session_id}"
+    )
+    return response
+
 
 @router.get("/api/v1/session/{session_id}/status", response_model=SessionStatusResponse)
-def session_status(session_id: str) -> SessionStatusResponse:
+@limiter.limit("30/minute")
+def session_status(request: Request, session_id: str) -> SessionStatusResponse:
     try:
         return get_status(session_id)
     except SessionNotFoundError as exc:

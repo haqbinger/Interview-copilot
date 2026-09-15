@@ -21,6 +21,7 @@ function InterviewScreen({
   const [submitting, setSubmitting] = useState(false)
   const [evaluation, setEvaluation] = useState(null)
   const [nextQuestion, setNextQuestion] = useState(null)
+  const [latencyInfo, setLatencyInfo] = useState(null)
   const [showMissing, setShowMissing] = useState(false)
   const [error, setError] = useState(null)
 
@@ -36,6 +37,16 @@ function InterviewScreen({
       if (response.data.question) {
         setEvaluation(response.data.evaluation)
         setNextQuestion(response.data.question)
+        setLatencyInfo(
+          response.latency_ms != null
+            ? {
+                latencyMs: response.latency_ms,
+                provider: response.data.provider,
+                inputTokens: response.input_tokens,
+                estimatedCostUsd: response.estimated_cost_usd,
+              }
+            : null
+        )
       }
     } catch (err) {
       setError(err.response?.data?.detail || err.message)
@@ -50,6 +61,7 @@ function InterviewScreen({
     setEvaluation(null)
     setNextQuestion(null)
     setShowMissing(false)
+    setLatencyInfo(null)
   }
 
   return (
@@ -76,7 +88,14 @@ function InterviewScreen({
           />
           {error && <p className="error-text">{error}</p>}
           <button className="btn" type="submit" disabled={!answer.trim() || submitting}>
-            {submitting ? 'Evaluating...' : 'Submit Answer'}
+            {submitting ? (
+              <>
+                <span className="spinner"></span>
+                Evaluating...
+              </>
+            ) : (
+              'Submit Answer'
+            )}
           </button>
         </form>
       )}
@@ -87,6 +106,22 @@ function InterviewScreen({
             <span className="eval-score mono">{evaluation.score}/5</span>
           </div>
           <p className="eval-verdict">{evaluation.verdict}</p>
+
+          {latencyInfo && (
+            <p style={{ color: 'var(--secondary)', fontSize: '11px' }}>
+              Evaluated in {Math.round(latencyInfo.latencyMs)}ms via {latencyInfo.provider}
+              {latencyInfo.inputTokens != null && ` · ${latencyInfo.inputTokens} tokens`}
+              {latencyInfo.estimatedCostUsd != null &&
+                ` · ~$${latencyInfo.estimatedCostUsd.toFixed(4)}`}
+            </p>
+          )}
+
+          {evaluation.rag_metrics && (
+            <p style={{ color: 'var(--secondary)', fontSize: '11px' }}>
+              Retrieved {evaluation.rag_metrics.chunks_retrieved} chunks · Precision{' '}
+              {Math.round(evaluation.rag_metrics.retrieval_precision * 100)}%
+            </p>
+          )}
 
           {evaluation.missing_concepts?.length > 0 && (
             <>

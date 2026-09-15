@@ -1,7 +1,7 @@
-import json
 import logging
 from collections import defaultdict
 
+from app.guardrails.output_validator import validate_llm_json
 from app.models.schemas import CategoryScore, GenerateReportRequest, InterviewReport
 
 logger = logging.getLogger(__name__)
@@ -51,10 +51,10 @@ def generate_report(request: GenerateReportRequest, provider) -> InterviewReport
         messages=[{"role": "user", "content": "Write the diagnostic now."}],
     )
 
-    try:
-        data = json.loads(response_text)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Failed to parse report response as JSON: {exc}") from exc
+    data = validate_llm_json(
+        response_text,
+        ["strong_areas", "weak_areas", "misconceptions", "revision_plan", "follow_up_questions"],
+    )
 
     try:
         return InterviewReport(

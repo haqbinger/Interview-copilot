@@ -34,7 +34,14 @@ function ExplainScreen({ openingPrompt, onSubmit, loading }) {
         </p>
 
         <button className="btn" type="submit" disabled={belowMin || loading}>
-          {loading ? 'Submitting...' : 'Submit Explanation'}
+          {loading ? (
+            <>
+              <span className="spinner"></span>
+              Submitting...
+            </>
+          ) : (
+            'Submit Explanation'
+          )}
         </button>
       </form>
     </div>

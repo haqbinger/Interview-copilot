@@ -1,7 +1,8 @@
-import json
 import logging
 
-from app.models.schemas import AnswerEvaluation, AnswerSubmission, EvaluateAnswerResponse
+from app.guardrails.output_validator import validate_llm_json
+from app.models.schemas import AnswerEvaluation, AnswerSubmission, EvaluateAnswerResponse, RAGMetrics
+from app.rag.evaluator import compute_answer_faithfulness, compute_retrieval_precision
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ File tree:
 
 File contents:
 {file_contents}
-
+{repo_context_section}
 Grade the answer against what the repo actually does. Respond with ONLY a JSON object (no markdown \
 fences, no commentary) with exactly this shape:
 {{
@@ -46,22 +47,39 @@ fences, no commentary) with exactly this shape:
 """
 
 
-def evaluate_answer(submission: AnswerSubmission, provider) -> EvaluateAnswerResponse:
-    system_prompt = _build_system_prompt(submission)
+def evaluate_answer(
+    submission: AnswerSubmission,
+    provider,
+    repo_context_chunks: list[str] | None = None,
+) -> EvaluateAnswerResponse:
+    system_prompt = _build_system_prompt(submission, repo_context_chunks)
     response_text = provider.complete(
         system=system_prompt,
         messages=[{"role": "user", "content": "Grade the answer now."}],
     )
 
+    data = validate_llm_json(
+        response_text,
+        ["score", "verdict", "correct_concepts", "missing_concepts", "misconceptions", "follow_up"],
+    )
     try:
-        data = json.loads(response_text)
         evaluation = AnswerEvaluation(
             question_id=submission.question_id,
             category=submission.category,
             **data,
         )
-    except (json.JSONDecodeError, TypeError) as exc:
+    except TypeError as exc:
         raise ValueError(f"Failed to parse answer evaluation response as JSON: {exc}") from exc
+
+    if repo_context_chunks:
+        rag_metrics = RAGMetrics(
+            retrieval_precision=compute_retrieval_precision(repo_context_chunks, data),
+            answer_faithfulness=compute_answer_faithfulness(
+                submission.candidate_answer, evaluation.correct_concepts
+            ),
+            chunks_retrieved=len(repo_context_chunks),
+        )
+        evaluation = evaluation.model_copy(update={"rag_metrics": rag_metrics})
 
     return EvaluateAnswerResponse(
         evaluation=evaluation,
@@ -77,12 +95,22 @@ def _difficulty_adjustment(score: int) -> int:
     return 0
 
 
-def _build_system_prompt(submission: AnswerSubmission) -> str:
+def _build_system_prompt(
+    submission: AnswerSubmission,
+    repo_context_chunks: list[str] | None = None,
+) -> str:
     repo_summary = submission.repo_summary
     file_list = "\n".join(f"- {f.path}" for f in repo_summary.file_tree)
     file_contents = "\n\n".join(
         f"### {f.path}\n{f.content}" for f in repo_summary.file_tree if f.content is not None
     )
+
+    repo_context_section = ""
+    if repo_context_chunks:
+        joined_chunks = "\n---\n".join(repo_context_chunks[:2])[:800]
+        repo_context_section = (
+            "\nRELEVANT CODE CONTEXT (retrieved via semantic search):\n" + joined_chunks + "\n"
+        )
 
     return SYSTEM_PROMPT_TEMPLATE.format(
         question_text=submission.question_text,
@@ -92,4 +120,5 @@ def _build_system_prompt(submission: AnswerSubmission) -> str:
         readme=repo_summary.readme or "(none)",
         file_list=file_list,
         file_contents=file_contents,
+        repo_context_section=repo_context_section,
     )

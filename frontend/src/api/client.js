@@ -4,11 +4,13 @@ const client = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'https://interview-copilot-backend-gopz.onrender.com',
 })
 
-export async function startSession(githubUrl, mode) {
-  const response = await client.post('/api/v1/session/start', {
-    github_url: githubUrl,
-    mode,
-  })
+export async function startSession(githubUrl, mode, apiKeys = []) {
+  const body = { github_url: githubUrl, mode }
+  if (apiKeys && apiKeys.length > 0) {
+    body.api_keys = apiKeys
+  }
+
+  const response = await client.post('/api/v1/session/start', body)
   return response.data
 }
 

@@ -4,8 +4,14 @@ httpx
 anthropic
 google-genai
 groq
+openai
+mistralai
 langgraph
 langchain-core
+chromadb
+sentence-transformers
 pydantic-settings
 python-dotenv
 groq
+slowapi
+tiktoken
