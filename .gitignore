@@ -8,7 +8,8 @@ env/
 *.egg-info/
 dist/
 build/
-
+# Agents skills
+.agents/
 # Env & secrets
 .env
 *.env.local

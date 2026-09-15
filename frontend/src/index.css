@@ -56,3 +56,38 @@ select {
     opacity: 1;
   }
 }
+
+button,
+a,
+input,
+textarea,
+select {
+  transition: all 0.15s ease;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@keyframes questionIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.question-text {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .question-text {
+    animation: questionIn 0.25s ease forwards;
+  }
+}

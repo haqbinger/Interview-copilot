@@ -1,48 +1,44 @@
 import { useState } from 'react'
 
-const MIN_CHARS = 100
-
 function ExplainScreen({ openingPrompt, onSubmit, loading }) {
   const [explanation, setExplanation] = useState('')
 
-  const belowMin = explanation.length < MIN_CHARS
-
   function handleSubmit(event) {
     event.preventDefault()
-    if (belowMin || loading) return
+    if (!explanation.trim() || loading) return
     onSubmit(explanation.trim())
   }
 
   return (
-    <div>
-      <h2>Explain your project.</h2>
-      <p className="opening-prompt-box">{openingPrompt}</p>
+    <div className="explain-arena">
+      <p className="explain-prompt">{openingPrompt}</p>
+      <div className="explain-divider" />
 
       <form onSubmit={handleSubmit}>
-        <label className="field-label" htmlFor="explanation">
-          In your own words
-        </label>
         <textarea
-          id="explanation"
-          className="textarea"
+          className="textarea explain-textarea"
           value={explanation}
           onChange={(event) => setExplanation(event.target.value)}
-          placeholder="Walk me through what this project does, how it's built, and the decisions behind it..."
+          placeholder="Start talking through your project..."
+          aria-label="Your explanation"
         />
-        <p className={`char-count${belowMin ? ' below-min' : ''}`}>
-          {explanation.length} / {MIN_CHARS} characters minimum
-        </p>
-
-        <button className="btn" type="submit" disabled={belowMin || loading}>
-          {loading ? (
-            <>
-              <span className="spinner"></span>
-              Submitting...
-            </>
-          ) : (
-            'Submit Explanation'
-          )}
-        </button>
+        <div className="explain-footer-row">
+          <span className="explain-char-count">{explanation.length} characters</span>
+          <button
+            className="btn explain-submit-btn"
+            type="submit"
+            disabled={!explanation.trim() || loading}
+          >
+            {loading ? (
+              <>
+                <span className="spinner"></span>
+                Submitting...
+              </>
+            ) : (
+              'Submit Explanation'
+            )}
+          </button>
+        </div>
       </form>
     </div>
   )

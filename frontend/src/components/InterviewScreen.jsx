@@ -10,6 +10,12 @@ function DifficultyDots({ difficulty }) {
   )
 }
 
+function scoreColorClass(score) {
+  if (score >= 4) return 'score-high'
+  if (score === 3) return 'score-mid'
+  return 'score-low'
+}
+
 function InterviewScreen({
   question,
   questionIndex,
@@ -21,7 +27,6 @@ function InterviewScreen({
   const [submitting, setSubmitting] = useState(false)
   const [evaluation, setEvaluation] = useState(null)
   const [nextQuestion, setNextQuestion] = useState(null)
-  const [latencyInfo, setLatencyInfo] = useState(null)
   const [showMissing, setShowMissing] = useState(false)
   const [error, setError] = useState(null)
 
@@ -37,16 +42,6 @@ function InterviewScreen({
       if (response.data.question) {
         setEvaluation(response.data.evaluation)
         setNextQuestion(response.data.question)
-        setLatencyInfo(
-          response.latency_ms != null
-            ? {
-                latencyMs: response.latency_ms,
-                provider: response.data.provider,
-                inputTokens: response.input_tokens,
-                estimatedCostUsd: response.estimated_cost_usd,
-              }
-            : null
-        )
       }
     } catch (err) {
       setError(err.response?.data?.detail || err.message)
@@ -61,22 +56,23 @@ function InterviewScreen({
     setEvaluation(null)
     setNextQuestion(null)
     setShowMissing(false)
-    setLatencyInfo(null)
   }
 
   return (
-    <div>
-      <div className="question-header">
-        <span className="question-number mono">
+    <div className="interview-arena">
+      <div className="interview-topbar">
+        <span className="interview-progress mono">
           Question {questionIndex + 1} of {totalQuestions || '?'}
         </span>
-        <div className="question-meta">
+        <div className="interview-meta">
           <span className="category-badge">{question.category}</span>
           <DifficultyDots difficulty={question.difficulty} />
         </div>
       </div>
 
-      <p className="question-text">{question.text}</p>
+      <p className="question-text" key={question.id}>
+        {question.text}
+      </p>
 
       {!evaluation && (
         <form onSubmit={handleSubmit}>
@@ -85,9 +81,14 @@ function InterviewScreen({
             value={answer}
             onChange={(event) => setAnswer(event.target.value)}
             placeholder="Type your answer..."
+            aria-label="Your answer"
           />
           {error && <p className="error-text">{error}</p>}
-          <button className="btn" type="submit" disabled={!answer.trim() || submitting}>
+          <button
+            className="btn interview-submit-btn"
+            type="submit"
+            disabled={!answer.trim() || submitting}
+          >
             {submitting ? (
               <>
                 <span className="spinner"></span>
@@ -101,27 +102,11 @@ function InterviewScreen({
       )}
 
       {evaluation && (
-        <div className="eval-box">
-          <div className="eval-score-row">
-            <span className="eval-score mono">{evaluation.score}/5</span>
+        <div className="eval-panel">
+          <div className={`eval-score mono ${scoreColorClass(evaluation.score)}`}>
+            {evaluation.score}/5
           </div>
           <p className="eval-verdict">{evaluation.verdict}</p>
-
-          {latencyInfo && (
-            <p style={{ color: 'var(--secondary)', fontSize: '11px' }}>
-              Evaluated in {Math.round(latencyInfo.latencyMs)}ms via {latencyInfo.provider}
-              {latencyInfo.inputTokens != null && ` · ${latencyInfo.inputTokens} tokens`}
-              {latencyInfo.estimatedCostUsd != null &&
-                ` · ~$${latencyInfo.estimatedCostUsd.toFixed(4)}`}
-            </p>
-          )}
-
-          {evaluation.rag_metrics && (
-            <p style={{ color: 'var(--secondary)', fontSize: '11px' }}>
-              Retrieved {evaluation.rag_metrics.chunks_retrieved} chunks · Precision{' '}
-              {Math.round(evaluation.rag_metrics.retrieval_precision * 100)}%
-            </p>
-          )}
 
           {evaluation.missing_concepts?.length > 0 && (
             <>
@@ -133,16 +118,18 @@ function InterviewScreen({
                 {showMissing ? 'Hide' : 'Show'} missing concepts
               </button>
               {showMissing && (
-                <ul className="missing-concepts-list">
-                  {evaluation.missing_concepts.map((concept) => (
-                    <li key={concept}>{concept}</li>
-                  ))}
-                </ul>
+                <div className="missing-concepts-panel">
+                  <ul className="missing-concepts-list">
+                    {evaluation.missing_concepts.map((concept) => (
+                      <li key={concept}>{concept}</li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </>
           )}
 
-          <button className="btn" onClick={handleNext}>
+          <button className="btn interview-next-btn" onClick={handleNext}>
             Next Question
           </button>
         </div>
