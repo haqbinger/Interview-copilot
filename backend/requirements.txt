@@ -8,8 +8,7 @@ openai
 mistralai
 langgraph
 langchain-core
-chromadb
-sentence-transformers
+scikit-learn
 pydantic-settings
 python-dotenv
 groq
